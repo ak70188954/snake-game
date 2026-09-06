@@ -1,0 +1,6 @@
+# Binaries
+snake-game
+*.exe
+
+# Go
+vendor/

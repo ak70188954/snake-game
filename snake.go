@@ -143,7 +143,14 @@ func (s *Snake) Update() {
 // SetDirection sets the snake's direction (with validation)
 func (s *Snake) SetDirection(dir Direction) {
 	// Prevent 180-degree turns
-	if s.direction+2 == dir {
+	switch {
+	case s.direction == Up && dir == Down:
+		return
+	case s.direction == Down && dir == Up:
+		return
+	case s.direction == Left && dir == Right:
+		return
+	case s.direction == Right && dir == Left:
 		return
 	}
 	s.nextDir = dir

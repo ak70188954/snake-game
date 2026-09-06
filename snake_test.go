@@ -83,9 +83,9 @@ func TestMoveLeft(t *testing.T) {
 	newBody := snake.GetBody()
 	newHead := newBody[0]
 	
-	// Head should NOT move left (180 turn blocked)
-	if newHead.X != initialHead.X {
-		t.Errorf("expected head to stay at X=%d (180 turn blocked), got %d", initialHead.X, newHead.X)
+	// 180 turn blocked, snake continues moving right
+	if newHead.X != initialHead.X+1 {
+		t.Errorf("expected head to move right to X=%d (180 turn blocked), got %d", initialHead.X+1, newHead.X)
 	}
 }
 
@@ -142,9 +142,9 @@ func TestPrevent180Turn(t *testing.T) {
 	// Snake is moving Right, try to go Left (180 turn)
 	snake.SetDirection(Left)
 	
-	// nextDir should be Left but direction should stay Right
-	if snake.nextDir != Left {
-		t.Errorf("expected nextDir to be Left, got %v", snake.nextDir)
+	// nextDir should stay Right (180 turn blocked), direction should stay Right
+	if snake.nextDir != Right {
+		t.Errorf("expected nextDir to stay Right, got %v", snake.nextDir)
 	}
 	if snake.GetDirection() != Right {
 		t.Errorf("expected direction to stay Right, got %v", snake.GetDirection())
@@ -277,23 +277,29 @@ func TestSpeedIncreases(t *testing.T) {
 func TestChangeDirection(t *testing.T) {
 	snake := NewSnake(40, 30, 20)
 	
-	// Test arrow keys - direction is stored in nextDir until Update() is called
+	// Snake starts with direction=Right. Test valid turns only.
 	snake.ChangeDirection("up")
 	if snake.nextDir != Up {
 		t.Errorf("expected nextDir Up, got %v", snake.nextDir)
 	}
 	
+	// direction is still Right (not yet applied by Update)
+	// Right -> Down is valid (90 degrees), not 180
 	snake.ChangeDirection("down")
 	if snake.nextDir != Down {
-		t.Errorf("expected nextDir Down, got %v", snake.nextDir)
+		t.Errorf("expected nextDir Down (90 deg turn), got %v", snake.nextDir)
 	}
 	
+	// direction is still Right
+	// Right -> Left is 180, should be blocked
 	snake.ChangeDirection("left")
-	if snake.nextDir != Left {
-		t.Errorf("expected nextDir Left, got %v", snake.nextDir)
+	if snake.nextDir != Down {
+		t.Errorf("expected nextDir to stay Down (180 blocked), got %v", snake.nextDir)
 	}
 	
+	// direction is still Right
 	snake.ChangeDirection("right")
+	// Right -> Right is valid
 	if snake.nextDir != Right {
 		t.Errorf("expected nextDir Right, got %v", snake.nextDir)
 	}
@@ -307,19 +313,112 @@ func TestWASDControls(t *testing.T) {
 		t.Errorf("expected nextDir Up with 'w', got %v", snake.nextDir)
 	}
 	
+	// direction is still Right
 	snake.ChangeDirection("s")
+	// Right -> Down is valid
 	if snake.nextDir != Down {
 		t.Errorf("expected nextDir Down with 's', got %v", snake.nextDir)
 	}
 	
+	// direction is still Right
 	snake.ChangeDirection("a")
-	if snake.nextDir != Left {
-		t.Errorf("expected nextDir Left with 'a', got %v", snake.nextDir)
+	// Right -> Left is 180, blocked
+	if snake.nextDir != Down {
+		t.Errorf("expected nextDir to stay Down (180 blocked), got %v", snake.nextDir)
 	}
 	
+	// direction is still Right
 	snake.ChangeDirection("d")
 	if snake.nextDir != Right {
 		t.Errorf("expected nextDir Right with 'd', got %v", snake.nextDir)
+	}
+}
+
+func TestTurnFromUp(t *testing.T) {
+	snake := NewSnake(40, 30, 20)
+	snake.StartGame()
+	
+	// Move up first (Right->Up is valid 90 deg turn)
+	snake.SetDirection(Up)
+	snake.lastMove = time.Now().Add(-300 * time.Millisecond)
+	snake.Update()
+	
+	// Now direction is Up. Try turning left and right (both valid from Up)
+	snake.SetDirection(Left)
+	if snake.nextDir != Left {
+		t.Errorf("expected Left from Up, got %v", snake.nextDir)
+	}
+	
+	snake.SetDirection(Right)
+	if snake.nextDir != Right {
+		t.Errorf("expected Right from Up, got %v", snake.nextDir)
+	}
+	
+	// Down from Up is 180, blocked
+	snake.SetDirection(Down)
+	if snake.nextDir != Right {
+		t.Errorf("expected nextDir to stay Right (180 blocked), got %v", snake.nextDir)
+	}
+}
+
+func TestTurnFromDown(t *testing.T) {
+	snake := NewSnake(40, 30, 20)
+	snake.StartGame()
+	
+	// Move down (Right->Down is valid 90 deg turn)
+	snake.SetDirection(Down)
+	snake.lastMove = time.Now().Add(-300 * time.Millisecond)
+	snake.Update()
+	
+	// Now direction is Down. Left and Right are valid from Down
+	snake.SetDirection(Left)
+	if snake.nextDir != Left {
+		t.Errorf("expected Left from Down, got %v", snake.nextDir)
+	}
+	
+	snake.SetDirection(Right)
+	if snake.nextDir != Right {
+		t.Errorf("expected Right from Down, got %v", snake.nextDir)
+	}
+	
+	// Up from Down is 180, blocked
+	snake.SetDirection(Up)
+	if snake.nextDir != Right {
+		t.Errorf("expected nextDir to stay Right (180 blocked), got %v", snake.nextDir)
+	}
+}
+
+func TestTurnFromLeft(t *testing.T) {
+	snake := NewSnake(40, 30, 20)
+	snake.StartGame()
+	
+	// Snake starts moving Right. First move to Left side of grid.
+	// Move right several times to get position
+	for i := 0; i < 5; i++ {
+		snake.lastMove = time.Now().Add(-300 * time.Millisecond)
+		snake.Update()
+	}
+	
+	// Now turn up
+	snake.SetDirection(Up)
+	snake.lastMove = time.Now().Add(-300 * time.Millisecond)
+	snake.Update()
+	
+	// Now direction is Up. Turn left and right (both valid from Up)
+	snake.SetDirection(Left)
+	if snake.nextDir != Left {
+		t.Errorf("expected Left from Up, got %v", snake.nextDir)
+	}
+	
+	snake.SetDirection(Right)
+	if snake.nextDir != Right {
+		t.Errorf("expected Right from Up, got %v", snake.nextDir)
+	}
+	
+	// Down from Up is 180, blocked
+	snake.SetDirection(Down)
+	if snake.nextDir != Right {
+		t.Errorf("expected nextDir to stay Right (180 blocked), got %v", snake.nextDir)
 	}
 }
 
