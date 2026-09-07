@@ -42,6 +42,8 @@ type Snake struct {
 	gridWidth  int
 	gridHeight int
 	cellSize   int
+	dirQueue   []Direction // input queue for rapid key presses
+	eaten      bool        // flag: food was eaten this tick
 }
 
 // NewSnake creates a new snake game instance
@@ -55,12 +57,12 @@ func NewSnake(gridWidth, gridHeight, cellSize int) *Snake {
 		gridHeight: gridHeight,
 		cellSize:   cellSize,
 		gameMode:   ModeMenu,
+		dirQueue:   make([]Direction, 0, 8),
 	}
 }
 
 // StartGame initializes a new game
 func (s *Snake) StartGame() {
-	// Start snake in the middle area, moving right with tail behind (to the left)
 	centerX := s.gridWidth / 2
 	centerY := s.gridHeight / 2
 
@@ -76,6 +78,8 @@ func (s *Snake) StartGame() {
 	s.spawnFood()
 	s.gameMode = ModePlaying
 	s.lastMove = time.Now()
+	s.dirQueue = s.dirQueue[:0]
+	s.eaten = false
 }
 
 // Update handles game logic updates
@@ -84,14 +88,21 @@ func (s *Snake) Update() {
 		return
 	}
 
+	// Process direction queue first
+	if len(s.dirQueue) > 0 {
+		s.nextDir = s.dirQueue[0]
+		s.dirQueue = s.dirQueue[1:]
+	}
+
 	// Check if it's time to move
 	if time.Since(s.lastMove) < s.speed {
 		return
 	}
 
 	s.lastMove = time.Now()
+	s.eaten = false
 
-	// Update direction
+	// Update direction from queue
 	s.direction = s.nextDir
 
 	// Calculate new head position
@@ -129,20 +140,24 @@ func (s *Snake) Update() {
 	// Check food collision
 	if newHead.X == s.food.X && newHead.Y == s.food.Y {
 		s.score++
-		// Increase speed slightly
+		s.eaten = true
 		if s.speed > 80*time.Millisecond {
 			s.speed -= 5 * time.Millisecond
 		}
 		s.spawnFood()
 	} else {
-		// Remove tail if no food eaten
 		s.body = s.body[:len(s.body)-1]
 	}
 }
 
-// SetDirection sets the snake's direction (with validation)
-func (s *Snake) SetDirection(dir Direction) {
-	// Prevent 180-degree turns
+// QueueDirection adds a direction to the input queue for rapid key presses
+func (s *Snake) QueueDirection(dir Direction) {
+	// Don't queue if queue is full
+	if len(s.dirQueue) >= 4 {
+		return
+	}
+
+	// Don't queue opposite direction of current
 	switch {
 	case s.direction == Up && dir == Down:
 		return
@@ -153,7 +168,22 @@ func (s *Snake) SetDirection(dir Direction) {
 	case s.direction == Right && dir == Left:
 		return
 	}
-	s.nextDir = dir
+
+	// Don't queue if same as last queued or current nextDir
+	last := s.nextDir
+	if len(s.dirQueue) > 0 {
+		last = s.dirQueue[len(s.dirQueue)-1]
+	}
+	if dir == s.direction || dir == last {
+		return
+	}
+
+	s.dirQueue = append(s.dirQueue, dir)
+}
+
+// SetDirection sets the snake's direction (with validation)
+func (s *Snake) SetDirection(dir Direction) {
+	s.QueueDirection(dir)
 }
 
 // GetBody returns a copy of the snake's body
@@ -203,12 +233,16 @@ func (s *Snake) GetSpeed() time.Duration {
 	return s.speed
 }
 
+// WasEaten returns whether food was eaten this tick
+func (s *Snake) WasEaten() bool {
+	return s.eaten
+}
+
 // spawnFood places food at a random position not occupied by the snake
 func (s *Snake) spawnFood() {
-	rand.Seed(time.Now().UnixNano())
-
 	// Generate random position until it's not on the snake
-	for {
+	// Use a simple counter to avoid infinite loops
+	for attempt := 0; attempt < s.gridWidth*s.gridHeight; attempt++ {
 		x := rand.Intn(s.gridWidth)
 		y := rand.Intn(s.gridHeight)
 
