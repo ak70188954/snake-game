@@ -181,9 +181,20 @@ func (s *Snake) QueueDirection(dir Direction) {
 	s.dirQueue = append(s.dirQueue, dir)
 }
 
-// SetDirection sets the snake's direction (with validation)
+// SetDirection sets the snake's next direction directly (used by tests)
 func (s *Snake) SetDirection(dir Direction) {
-	s.QueueDirection(dir)
+	// Prevent 180-degree turns
+	switch {
+	case s.direction == Up && dir == Down:
+		return
+	case s.direction == Down && dir == Up:
+		return
+	case s.direction == Left && dir == Right:
+		return
+	case s.direction == Right && dir == Left:
+		return
+	}
+	s.nextDir = dir
 }
 
 // GetBody returns a copy of the snake's body
